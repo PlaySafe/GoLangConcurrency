@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"strings"
-	"sync"
 	"testing"
 )
 
@@ -11,9 +10,7 @@ const file string = "w.txt"
 const total int = 20
 
 func TestWriteNNumbersToFile(t *testing.T){
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	n, err := write(file, total, &wg)
+	n, err := write(file, total)
 
 	if err != nil {
 		t.Error(err)
@@ -37,10 +34,8 @@ func TestWriteNNumbersToFile(t *testing.T){
 }
 
 func TestReadNumbersFromFile(t *testing.T){
-	wg := sync.WaitGroup{}
-	wg.Add(1)
 	defer os.Remove(file)
-	n, err0 := write(file, total, &wg)
+	n, err0 := write(file, total)
 
 	if err0 != nil {
 		t.Error(err0)
@@ -64,8 +59,7 @@ func TestReadNumbersFromFile(t *testing.T){
 		}
 	}
 
-	wg.Add(1)
-	length, err1 := read(file, &wg, mockStdOut)
+	length, err1 := read(file, mockStdOut, 0, total)
 	if err1 != nil {
 		t.Error(err1)
 	}
@@ -75,7 +69,7 @@ func TestReadNumbersFromFile(t *testing.T){
 		t.Error(err2)
 	}
 
-	expectLength := int64(len(string(data)))
+	expectLength := len(string(data))
 	if expectLength != length {
 		t.Errorf("Expect %v characters, but got %v", expectLength, length)
 	}

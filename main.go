@@ -24,21 +24,50 @@ func ReadWrite(file *string, total *int) {
 	var wg = sync.WaitGroup{}
 	wg.Add(2)
 
-	go write(*file, *total, &wg)
+	ch := make(chan int, 10)
+
+	go func(file string, total int, wg *sync.WaitGroup, ch chan <- int) {
+		f, err := os.OpenFile(file, os.O_CREATE, 0777)
+		if err != nil {
+			log.Fatal("Cannot create file " + file)
+		}
+		f.Close()
+
+		for i:=0; i<total; {
+			n := min(100, total - i)
+			write(file, n)
+			i+= n
+			ch <- n
+		}
+
+		close(ch)
+		wg.Done()
+	}(*file, *total, &wg, ch)
+
 
 	writer := func(s string) {
 		os.Stdout.Write([]byte(s))
 		os.Stdout.Write([]byte("\n"))
 	}
 
-	go read(*file, &wg, writer)
+	go func(file string, writer func(s string), ch <- chan int) {
+		var start int = 0
+		for n := range ch {
+			total, err := read(file, writer, start, start + n)
+			if err != nil {
+				log.Fatalf("Unexpect error %v", err)
+			}
+			start += total
+		}
+		wg.Done()
+	}(*file, writer, ch)
+
 	wg.Wait()
 }
 
-func write(file string, total int, wg *sync.WaitGroup) (int, error) {
-	f, err := os.OpenFile(file, os.O_APPEND | os.O_CREATE | os.O_WRONLY, 0777)
+func write(file string, total int) (int, error) {
+	f, err := os.OpenFile(file, os.O_APPEND | os.O_WRONLY | os.O_CREATE, 0777)
 	defer f.Close()
-	defer wg.Done()
 	if err != nil {
 		log.Fatal("Cannot open file " + file)
 		return 0, err
@@ -71,10 +100,9 @@ func write(file string, total int, wg *sync.WaitGroup) (int, error) {
 	return total, nil
 }
 
-func read(file string, wg *sync.WaitGroup, writer func(s string)) (int64, error) {
+func read(file string, writer func(s string), startIndex int, endIndex int) (int, error) {
 	f, err1 := os.OpenFile(file, os.O_RDONLY | os.O_CREATE, 0644);
 	defer f.Close()
-	defer wg.Done()
 	if err1 != nil {
 		log.Fatalf("Cannot read file %v because of %v", file, err1)
 		return 0, err1
@@ -83,9 +111,9 @@ func read(file string, wg *sync.WaitGroup, writer func(s string)) (int64, error)
 	buffer := make([]byte, 1)
 
 	var err error = nil
-	var i int64 = 0
-	for ; err != io.EOF; i++ {
-		_, err := f.ReadAt(buffer, i)
+	var i int = startIndex
+	for ; err != io.EOF && i<endIndex; i++ {
+		_, err := f.ReadAt(buffer, int64(i))
 		if err == nil {
 			s := string(buffer[0])
 			if s[0] % 2 == 0 {
@@ -100,4 +128,12 @@ func read(file string, wg *sync.WaitGroup, writer func(s string)) (int64, error)
 		}
 	}
 	return i, nil
+}
+
+func min(a int, b int) int {
+	if a <= b {
+		return a
+	} else {
+		return b
+	}
 }
