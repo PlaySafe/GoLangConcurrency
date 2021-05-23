@@ -78,13 +78,7 @@ func write(file string, total int) (int, error) {
 	for i:=0; i<total; {
 		num := strconv.Itoa(rand.Intn(math.MaxInt64))
 		length := len(num)
-		var n int = func(length int, remain int) int {
-			if length <= remain {
-				return length
-			} else {
-				return remain
-			}
-		}(length, total - i)
+		var n int = min(length, total-i)
 
 		_, err := f.WriteString(num[:n])
 		if err != nil {
